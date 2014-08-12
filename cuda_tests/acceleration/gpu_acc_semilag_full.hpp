@@ -46,7 +46,7 @@ void fprint_column(const char *filename, Real *column, const uint size, const ui
 }
 
 // Analogous to map_1d
-void map_column(full_grid_t *full_grid, Real intersection, Real intersection_di, Real intersection_dj, Real intersection_dk, int dimension) {
+__global__ void map_column(GPU_velocity_grid *ggrid, Real intersection, Real intersection_di, Real intersection_dj, Real intersection_dk, int dimension) {
   Real cell_dv, v_min;
   Real is_temp;
   int column_size;
@@ -199,18 +199,15 @@ void gpu_accelerate_cell_(SpatialCell* spatial_cell,const Real dt) {
    phiprof::start("compute-mapping");
 
    // Create a full grid from the sparse spatialCell
-   full_grid_t *full_grid = to_full_grid(spatial_cell);
-   //printf("BB: %i %i %i, %i %i %i\n", full_grid->min_x, full_grid->min_y, full_grid->min_z, full_grid->min_x + full_grid->dx, full_grid->min_y + full_grid->dy, full_grid->min_z + full_grid->dz);
-
+   GPU_velocity_grid *ggrid = new GPU_velocity_grid(spatial_ cell);
 
    //Do the actual mapping
-   map_column(full_grid, intersection_z,intersection_z_di,intersection_z_dj,intersection_z_dk, 2);
-   map_column(full_grid, intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk, 0);
-   map_column(full_grid, intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk, 1);
+   map_column_kernel(full_grid, intersection_z,intersection_z_di,intersection_z_dj,intersection_z_dk, 2);
+   map_column_kernel(full_grid, intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk, 0);
+   map_column_kernel(full_grid, intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk, 1);
 
    // Transfer data back to the SpatialCell
-   data_to_SpatialCell(spatial_cell, full_grid);
-   printf("rel blocks %i\n", relevant_blocks);
+   spatial_cell = ggrid->data_to_SpatialCell(spatial_cell, full_grid);
    
    // Remove unnecessary blocks
    std::vector<SpatialCell*> neighbor_ptrs;

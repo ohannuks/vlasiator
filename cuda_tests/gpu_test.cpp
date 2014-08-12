@@ -78,9 +78,6 @@ int main(void) {
     CUDACALL(cudaEventRecord(stop));
     cudaEventSynchronize(stop);
     print_elapsed_time(start, stop);
-    
-    ggrid->print_cells();
-    CUDACALL(cudaDeviceSynchronize());
 
     putchar('\n');
     printf("spacell:\n");
@@ -92,10 +89,6 @@ int main(void) {
         Velocity_Block* block_ptr = spacell->at(ind);
         printf(block_print_format, ind, inds.x, inds.y, inds.z, block_ptr->data[0]);
     }
-    putchar('\n');
-    
-    putchar('\n');
-    ggrid->print_velocity_block_list();
     putchar('\n');
 
     putchar('\n');

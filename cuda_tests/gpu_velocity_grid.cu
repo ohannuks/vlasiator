@@ -2,14 +2,6 @@
 
 using namespace spatial_cell;
 
-// Constant memory can not be allocated inside class definition, therefore only accessed directly from this file and via accessors if necessary.
-// Identical to those of SpatialCell aka. dimensions of velocity space.
-__constant__ unsigned int vx_length, \
-                          vy_length, \
-                          vz_length;
-// Minimum and maximum points of bounding box and lengths of each dimension.
-__constant__ ind3d min3d, max3d, box_dims;
-
 // Copies velocity_block_list and block_data as well as necessary constants from a SpatialCell to GPU for processing.
 GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
     cpu_cell = spacell;
@@ -21,7 +13,8 @@ GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
     CUDACALL(cudaMalloc(&velocity_block_list, vel_block_list_size));
     CUDACALL(cudaMalloc(&block_data, block_data_size));
     CUDACALL(cudaMalloc(&min_val, sizeof(Real)));
-    
+    CUDACALL(cudaMalloc(&grid_dims, sizeof(grid_dims_t)));
+
     // Copy to gpu
     unsigned int *velocity_block_list_arr = &(spacell->velocity_block_list[0]);
     Real *block_data_arr = &(spacell->block_data[0]);
@@ -29,9 +22,9 @@ GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
     num_blocks_host = spacell->number_of_blocks;
     CUDACALL(cudaMemcpy(min_val, &(SpatialCell::velocity_block_min_value), sizeof(Real), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(num_blocks, &(spacell->number_of_blocks), sizeof(unsigned int), cudaMemcpyHostToDevice));
-    CUDACALL(cudaMemcpyToSymbol(vx_length, &SpatialCell::vx_length, sizeof(unsigned int)));
-    CUDACALL(cudaMemcpyToSymbol(vy_length, &SpatialCell::vy_length, sizeof(unsigned int)));
-    CUDACALL(cudaMemcpyToSymbol(vz_length, &SpatialCell::vz_length, sizeof(unsigned int)));
+    CUDACALL(cudaMemcpy(&grid_dims->sparse_size.x, &SpatialCell::vx_length, sizeof(unsigned int), cudaMemcpyHostToDevice));
+    CUDACALL(cudaMemcpy(&grid_dims->sparse_size.y, &SpatialCell::vy_length, sizeof(unsigned int), cudaMemcpyHostToDevice));
+    CUDACALL(cudaMemcpy(&grid_dims->sparse_size.z, &SpatialCell::vz_length, sizeof(unsigned int), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(velocity_block_list, velocity_block_list_arr, vel_block_list_size, cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(block_data, block_data_arr, block_data_size, cudaMemcpyHostToDevice));
 }
@@ -46,15 +39,7 @@ __host__ void GPU_velocity_grid::del(void) {
 }
 
 // Nothing in here because this is called whenever a copy-by-value goes out of scope. Call dell when you want to free memory related to the instance.
-GPU_velocity_grid::~GPU_velocity_grid() {}
-
-__global__ void print_constants_k(void) {
-    printf("vx_length: %u, vy_length: %u, vz_length: %u\n", vx_length, vy_length, vz_length);
-}
-void print_constants(void) {
-    // Easiest to print from a kernel
-    print_constants_k<<<1,1>>>();
-}
+__host__ __device__ GPU_velocity_grid::~GPU_velocity_grid() {}
 
 __global__ void print_cells_k(GPU_velocity_grid ggrid) {
     ind3d inds = {15,15,15};
@@ -66,30 +51,22 @@ __global__ void print_cells_k(GPU_velocity_grid ggrid) {
     ind = ggrid.get_velocity_block(inds);
     printf("%u %u %u: %e \n", inds.x, inds.y, inds.z, ggrid.get_velocity_cell(ind, 0));
 }
-void GPU_velocity_grid::print_cells(void) {
-    print_cells_k<<<1,1>>>(*this);
-}
-
-// Simple accessors
-__device__ inline unsigned int GPU_velocity_grid::vx_len(void) {return vx_length;}
-__device__ inline unsigned int GPU_velocity_grid::vy_len(void) {return vy_length;}
-__device__ inline unsigned int GPU_velocity_grid::vz_len(void) {return vz_length;}
 
 // Same as SpatialCell::get_velocity_block_indices but revised for GPU. Constructs 3d indices from 1d index.
 __device__ ind3d GPU_velocity_grid::get_velocity_block_indices(const unsigned int blockid) {
     ind3d indices;
-    indices.x = blockid % vx_length;
-    indices.y = (blockid / vx_length) % vy_length;
-    indices.z = blockid / (vx_length * vy_length);
+    indices.x = blockid % this->grid_dims->sparse_size.x;
+    indices.y = (blockid / this->grid_dims->sparse_size.x) % this->grid_dims->sparse_size.y;
+    indices.z = blockid / (this->grid_dims->sparse_size.x * this->grid_dims->sparse_size.y);
 
     return indices;
 }
 
 __device__ ind3d GPU_velocity_grid::get_full_grid_block_indices(const unsigned int blockid) {
     ind3d indices;
-    indices.x = blockid % box_dims.x;
-    indices.y = (blockid / box_dims.x) % box_dims.y;
-    indices.z = blockid / (box_dims.x * box_dims.y);
+    indices.x = blockid % this->grid_dims->size.x;
+    indices.y = (blockid / this->grid_dims->size.x) % this->grid_dims->size.y;
+    indices.z = blockid / (this->grid_dims->size.x * this->grid_dims->size.y);
 
     return indices;
 }
@@ -115,7 +92,7 @@ __host__ ind3d GPU_velocity_grid::get_velocity_block_indices_host(const unsigned
 
 // Constructs 1d index out of 3d indices
 __device__ unsigned int GPU_velocity_grid::get_velocity_block(const ind3d indices) {
-    unsigned int ret = indices.x + indices.y * vx_length + indices.z * vx_length * vy_length;
+    unsigned int ret = indices.x + indices.y * this->grid_dims->sparse_size.x + indices.z * this->grid_dims->sparse_size.x * this->grid_dims->sparse_size.y;
     //printf("%u %u %u: %u\n", indices.x, indices.y, indices.z, ret);
     return ret;
 }
@@ -127,43 +104,24 @@ __global__ void kernel_print_blocks(GPU_velocity_grid grid) {
     unsigned int ind;
     ind3d indices;
     ind = grid.velocity_block_list[tid];
-    indices = GPU_velocity_grid::get_velocity_block_indices(ind);
+    indices = grid.get_velocity_block_indices(ind);
     printf("%5.0u: (%4i, %4i, %4i) %7.1f\n", ind, indices.x, indices.y, indices.z, grid.block_data[tid*WID3]);
-}
-
-// Wrapper for the kernel
-__host__ void GPU_velocity_grid::k_print_blocks(void) {
-    kernel_print_blocks<<<*num_blocks, 1>>>(*this);
-    CUDACALL(cudaPeekAtLastError()); // Check for kernel launch errors
-    CUDACALL(cudaDeviceSynchronize()); // Check for other cuda errors
-}
-
-// Prints information about transferred blocks from gpu memory
-__host__ void GPU_velocity_grid::print_blocks(void) {
-    printf("Number of blocks: %4u.\n", *num_blocks);
-    unsigned int ind;
-    ind3d indices;
-    for (int i=0; i<*num_blocks; i++) {
-        ind = velocity_block_list[i];
-        printf("%5.0u: ", ind);
-        indices = get_velocity_block_indices_host(ind);
-        printf("(%4i, %4i, %4i) %7.1f\n", indices.x, indices.y, indices.z, block_data[i*WID3]);
-    }
 }
 
 __device__ vel_block* GPU_velocity_grid::get_velocity_grid_block(unsigned int blockid) {
     ind3d block_indices = GPU_velocity_grid::get_velocity_block_indices(blockid);
     //printf("%u: %u %u %u\n", blockid, block_indices.x, block_indices.y, block_indices.z);
     // Check for out of bounds
-    if (block_indices.x > max3d.x ||
-        block_indices.y > max3d.y ||
-        block_indices.z > max3d.z ||
-        block_indices.x < min3d.x ||
-        block_indices.y < min3d.y ||
-        block_indices.z < min3d.z) return ERROR_BLOCK;
+    grid_dims_t dims = *this->grid_dims;
+    if (block_indices.x > dims.max.x ||
+        block_indices.y > dims.max.y ||
+        block_indices.z > dims.max.z ||
+        block_indices.x < dims.min.x ||
+        block_indices.y < dims.min.y ||
+        block_indices.z < dims.min.z) return ERROR_BLOCK;
     // Move the indices to same origin and dimensions as the bounding box
-    ind3d n_ind = {block_indices.x - min3d.x, block_indices.y - min3d.y, block_indices.z - min3d.z};
-    vel_block *block_ptr = &vel_grid[n_ind.x + n_ind.y*box_dims.x + n_ind.z*box_dims.x*box_dims.y];
+    ind3d n_ind = {block_indices.x - dims.min.x, block_indices.y - dims.min.y, block_indices.z - dims.min.z};
+    vel_block *block_ptr = &vel_grid[n_ind.x + n_ind.y*dims.size.x + n_ind.z*dims.size.x*dims.size.y];
     //printf("%4u: %2u %2u %2u, %2u %2u %2u. %016lx\n", n_ind.x + n_ind.y*box_dims.x + n_ind.z*box_dims.x*box_dims.y, block_indices.x, block_indices.y, block_indices.z, n_ind.x, n_ind.y, n_ind.z, block_ptr);
     return block_ptr;
 }
@@ -171,8 +129,8 @@ __device__ vel_block* GPU_velocity_grid::get_velocity_grid_block(unsigned int bl
 // Returns index of the sparse grid corresponding to the blockid of the full grid
 __device__ int GPU_velocity_grid::full_to_sparse_ind(unsigned int blockid) {
     ind3d full_inds = get_full_grid_block_indices(blockid);
-    ind3d sparse_inds = {min3d.x + full_inds.x, min3d.y + full_inds.y, min3d.z + full_inds.z};
-    return sparse_inds.x + sparse_inds.y * vx_length + sparse_inds.z * vx_length * vy_length;
+    ind3d sparse_inds = {this->grid_dims->min.x + full_inds.x, this->grid_dims->min.y + full_inds.y, this->grid_dims->min.z + full_inds.z};
+    return sparse_inds.x + sparse_inds.y * this->grid_dims->sparse_size.x + sparse_inds.z * this->grid_dims->sparse_size.x * this->grid_dims->sparse_size.y;
 }
 
 // Same as above for host. Requires indices of the minimum point of the full grid.
@@ -255,10 +213,11 @@ __host__ void GPU_velocity_grid::init_grid(void) {
     unsigned int vel_grid_len = dx*dy*dz;
     printf("GRID DIMS: %u %u %u: %u\n", dx, dy, dz, vel_grid_len);
     ind3d dims = {dx, dy, dz};
-    // Copy to constant memory
-    CUDACALL(cudaMemcpyToSymbol(min3d, &min_i, sizeof(ind3d)));
-    CUDACALL(cudaMemcpyToSymbol(max3d, &max_i, sizeof(ind3d)));
-    CUDACALL(cudaMemcpyToSymbol(box_dims, &dims, sizeof(ind3d)));
+    // Copy constants to device
+    CUDACALL(cudaMemcpy(&this->grid_dims->min, &min_i, sizeof(ind3d), cudaMemcpyHostToDevice));
+    CUDACALL(cudaMemcpy(&this->grid_dims->max, &max_i, sizeof(ind3d), cudaMemcpyHostToDevice));
+    CUDACALL(cudaMemcpy(&this->grid_dims->size, &dims, sizeof(ind3d), cudaMemcpyHostToDevice));
+
     CUDACALL(cudaMalloc(&vel_grid, vel_grid_len * sizeof(vel_block)));
     
     // Calculate grid dimensions and start kernel
@@ -298,8 +257,8 @@ __host__ SpatialCell* GPU_velocity_grid::toSpatialCell(void) {
     SpatialCell *spacell = cpu_cell; // The input SpatialCell is used to create the output.
     ind3d bounding_box_dims, bounding_box_mins;
     bool *relevant_blocks;
-    CUDACALL(cudaMemcpyFromSymbol(&bounding_box_dims, box_dims, sizeof(ind3d)));
-    CUDACALL(cudaMemcpyFromSymbol(&bounding_box_mins, min3d, sizeof(ind3d)));
+    CUDACALL(cudaMemcpy(&bounding_box_dims, &this->grid_dims->size, sizeof(ind3d), cudaMemcpyDeviceToHost));
+    CUDACALL(cudaMemcpy(&bounding_box_mins, &this->grid_dims->min, sizeof(ind3d), cudaMemcpyDeviceToHost));
 
     int box_size = bounding_box_dims.x * bounding_box_dims.y * bounding_box_dims.z;
     CUDACALL(cudaMalloc(&relevant_blocks, box_size * sizeof(bool)));
@@ -342,21 +301,3 @@ __host__ SpatialCell* GPU_velocity_grid::toSpatialCell(void) {
     CUDACALL(cudaDeviceSynchronize());
     return spacell;
 }
-
-__global__ void print_velocity_block_list_k(GPU_velocity_grid ggrid) {
-    const int cellid = 0;
-    printf("ggrid:\n");
-    printf("Number of relevant blocks: %4u\n", *ggrid.num_blocks);
-    for (int i = 0; i < *(ggrid.num_blocks); i++) {
-        int ind = ggrid.velocity_block_list[i];
-        ind3d inds = GPU_velocity_grid::get_velocity_block_indices(ind);
-        printf(block_print_format, ind, inds.x, inds.y, inds.z, ggrid.block_data[i*WID3 + cellid]);
-    }
-}
-
-__host__ void GPU_velocity_grid::print_velocity_block_list(void) {
-    print_velocity_block_list_k<<<1,1>>>(*this);
-    cudaDeviceSynchronize();
-}
-
-

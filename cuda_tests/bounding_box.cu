@@ -7,19 +7,19 @@
  *  MINIMuM INDEX
  */
 
-__device__ unsigned int lower_bound(const unsigned int point1, const unsigned int point2) {
-    ind3d indices1 = GPU_velocity_grid::get_velocity_block_indices(point1);
-    ind3d indices2 = GPU_velocity_grid::get_velocity_block_indices(point2);
+__device__ unsigned int lower_bound(GPU_velocity_grid grid, const unsigned int point1, const unsigned int point2) {
+    ind3d indices1 = grid.get_velocity_block_indices(point1);
+    ind3d indices2 = grid.get_velocity_block_indices(point2);
     // Put the smaller value of each index to indices1
     indices1.x = indices1.x < indices2.x ? indices1.x : indices2.x;
     indices1.y = indices1.y < indices2.y ? indices1.y : indices2.y;
     indices1.z = indices1.z < indices2.z ? indices1.z : indices2.z;
     // Return as 1d index
-    return GPU_velocity_grid::get_velocity_block(indices1);
+    return grid.get_velocity_block(indices1);
 }
 
 // Finds the minimum index in all dimensions and returns it as a 1d index
-__global__ void min_ind_kernel(unsigned int *data, unsigned int data_size, unsigned int *resultarr) {
+__global__ void min_ind_kernel(GPU_velocity_grid grid, unsigned int *data, unsigned int data_size, unsigned int *resultarr) {
     extern __shared__ unsigned int sdata[];
     // each thread loads one element from global to shared mem
     unsigned int tid = threadIdx.x;
@@ -36,7 +36,7 @@ __global__ void min_ind_kernel(unsigned int *data, unsigned int data_size, unsig
     // do reduction in shared mem
     for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
         if (tid < s) {
-            sdata[tid] = lower_bound(sdata[tid], sdata[tid + s]);
+            sdata[tid] = lower_bound(grid, sdata[tid], sdata[tid + s]);
         }
         __syncthreads();
     }
@@ -68,7 +68,7 @@ __host__ unsigned int GPU_velocity_grid::min_ind(void) {
     // First round works on the input array
     printf("First invocation!!!!!!!!!!!!!!!!!\n");
     #endif
-    min_ind_kernel<<<grid_size, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(velocity_block_list, len, result);
+    min_ind_kernel<<<grid_size, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(*this, velocity_block_list, len, result);
     CUDACALL(cudaDeviceSynchronize());
     // Now iterate over the result array
     grid_size = ceilDivide(grid_size, REDUCE_BLOCK_SIZE);
@@ -77,7 +77,7 @@ __host__ unsigned int GPU_velocity_grid::min_ind(void) {
     printf("Entering loop!!!!!!!!!!!!!!!!!!!!\n");
     #endif
     for (; grid_size > 1; grid_size = ceilDivide(grid_size, REDUCE_BLOCK_SIZE)) {
-        min_ind_kernel<<<grid_size, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(result, len, result);
+        min_ind_kernel<<<grid_size, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(*this, result, len, result);
         CUDACALL(cudaDeviceSynchronize());
         len = ceilDivide(len, REDUCE_BLOCK_SIZE);
         last_grid_size = grid_size;
@@ -86,7 +86,7 @@ __host__ unsigned int GPU_velocity_grid::min_ind(void) {
     #ifdef DEBUG_PRINT
     printf("Last kernel call!!!!!!!!!!!!!!!!!!1     %u\n", last_grid_size);
     #endif
-    min_ind_kernel<<<1, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(result, last_grid_size, result);
+    min_ind_kernel<<<1, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(*this, result, last_grid_size, result);
 
     //for (int i=0; i<last_grid_size; i++) printf("%4.1f ", result[i]);
     //putchar('\n');
@@ -102,19 +102,21 @@ __host__ unsigned int GPU_velocity_grid::min_ind(void) {
  *  MAXIMUM INDEX
  */
 
-__device__ unsigned int upper_bound(const unsigned int point1, const unsigned int point2) {
-    ind3d indices1 = GPU_velocity_grid::get_velocity_block_indices(point1);
-    ind3d indices2 = GPU_velocity_grid::get_velocity_block_indices(point2);
-    // Put the smaller value of each index to indices1
+// Returns a 1d index to the sparse grid that corresponds to upper bound of all dimensions of the two 1d points given as parameter.
+__device__ unsigned int upper_bound(GPU_velocity_grid grid, const unsigned int point1, const unsigned int point2) {
+    // Get 3d indices
+    ind3d indices1 = grid.get_velocity_block_indices(point1);
+    ind3d indices2 = grid.get_velocity_block_indices(point2);
+    // Put the larger value of each index to indices1
     indices1.x = indices1.x > indices2.x ? indices1.x : indices2.x;
     indices1.y = indices1.y > indices2.y ? indices1.y : indices2.y;
     indices1.z = indices1.z > indices2.z ? indices1.z : indices2.z;
     // Return as 1d index
-    return GPU_velocity_grid::get_velocity_block(indices1);
+    return grid.get_velocity_block(indices1);
 }
 
 // Finds the maximum index in all dimensions and returns it as a 1d index
-__global__ void max_ind_kernel(unsigned int *data, unsigned int data_size, unsigned int *resultarr) {
+__global__ void max_ind_kernel(GPU_velocity_grid grid, unsigned int *data, unsigned int data_size, unsigned int *resultarr) {
     extern __shared__ unsigned int sdata[];
     // each thread loads one element from global to shared mem
     unsigned int tid = threadIdx.x;
@@ -131,7 +133,7 @@ __global__ void max_ind_kernel(unsigned int *data, unsigned int data_size, unsig
     // do reduction in shared mem
     for (unsigned int s=blockDim.x/2; s>0; s>>=1) {
         if (tid < s) {
-            sdata[tid] = upper_bound(sdata[tid], sdata[tid + s]);
+            sdata[tid] = upper_bound(grid, sdata[tid], sdata[tid + s]);
         }
         __syncthreads();
     }
@@ -163,7 +165,7 @@ __host__ unsigned int GPU_velocity_grid::max_ind(void) {
     // First round works on the input array
     printf("First invocation!!!!!!!!!!!!!!!!!\n");
     #endif
-    max_ind_kernel<<<grid_size, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(velocity_block_list, len, result);
+    max_ind_kernel<<<grid_size, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(*this, velocity_block_list, len, result);
     CUDACALL(cudaDeviceSynchronize());
     // Now iterate over the result array
     grid_size = ceilDivide(grid_size, REDUCE_BLOCK_SIZE);
@@ -172,7 +174,7 @@ __host__ unsigned int GPU_velocity_grid::max_ind(void) {
     printf("Entering loop!!!!!!!!!!!!!!!!!!!!\n");
     #endif
     for (; grid_size > 1; grid_size = ceilDivide(grid_size, REDUCE_BLOCK_SIZE)) {
-        max_ind_kernel<<<grid_size, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(result, len, result);
+        max_ind_kernel<<<grid_size, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(*this, result, len, result);
         CUDACALL(cudaDeviceSynchronize());
         len = ceilDivide(len, REDUCE_BLOCK_SIZE);
         last_grid_size = grid_size;
@@ -181,7 +183,7 @@ __host__ unsigned int GPU_velocity_grid::max_ind(void) {
     #ifdef DEBUG_PRINT
     printf("Last kernel call!!!!!!!!!!!!!!!!!!1     %u\n", last_grid_size);
     #endif
-    max_ind_kernel<<<1, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(result, last_grid_size, result);
+    max_ind_kernel<<<1, REDUCE_BLOCK_SIZE, REDUCE_BLOCK_SIZE*sizeof(unsigned int)>>>(*this, result, last_grid_size, result);
 
     //for (int i=0; i<last_grid_size; i++) printf("%4.1f ", result[i]);
     //putchar('\n');
