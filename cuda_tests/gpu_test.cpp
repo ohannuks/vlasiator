@@ -25,30 +25,6 @@ int main(void) {
     // Initialize cuda events
     cudaEventCreate(&start);
     cudaEventCreate(&stop);
-
-    // Add blocks to the given ids
-    //const int ids_len = (int)2e4;
-    //int ids[ids_len];
-    /*
-    for (int i=0; i<ids_len; i++) {
-        int ind = i;
-        ind3d inds = GPU_velocity_grid::get_velocity_block_indices_host(ind);
-        // Skip if not inside the wanted area.
-        if (inds.x < min_lim || inds.x > max_lim ||
-            inds.y < min_lim || inds.y > max_lim ||
-            inds.z < min_lim || inds.z > max_lim) continue;
-        ids[i] = ind;
-        spacell.add_velocity_block(ind);
-        Velocity_Block* block_ptr = spacell.at(ind);
-        // Put some data into each velocity spacell
-        for (int j = 0; j < WID3; j++) block_ptr->data[j]=ind+j/100.;
-    }
-    */
-
-    // Print data as it is on CPU
-    //printf("On host:\n");
-    //print_blocks(&spacell);
-    printf("Number of blocks: %i\n", spacell->number_of_blocks);
     
     // Create a new instance. Constructor copies related data.
     printf("Create an instance of GPU_velovity_grid and copy data over to GPU:\n");
