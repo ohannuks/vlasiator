@@ -1,0 +1,30 @@
+NVCC = nvcc
+CC = mpiCC
+
+NVCC_FLAGS = -arch=compute_20 -code=sm_20
+CCFLAGS = -lgomp -lcudart -lcuda -lcudadevrt
+CUDAFLAGS = -I${CUDA_PATH}/include -L$(CUDA_PATH)/lib64
+LIBRARY_PREFIX = /home/eskelinej/programs/
+
+# Libraries
+LIBRARY_PREFIX = $(USERAPPL)/openmpi/libraries
+MPI_HOME = /appl/opt/openmpi/1.8-cuda/gcc/4.8.2/
+
+INC_BOOST = -I$(LIBRARY_PREFIX)/boost/include
+LIB_BOOST = 
+
+LIB_PROFILE = -L$(LIBRARY_PREFIX)/phiprof/lib -lphiprof
+INC_PROFILE = -I$(LIBRARY_PREFIX)/phiprof/include
+
+LIB_MPI = -L$(MPI_HOME)/lib
+INC_MPI = -I$(MPI_HOME)/include
+
+
+INC_EIGEN = -I$(LIBRARY_PREFIX)/Eigen
+
+INC_DCCRG = -I$(LIBRARY_PREFIX)/dccrg
+
+INC_ZOLTAN = -I$(LIBRARY_PREFIX)/zoltan/include
+LIB_ZOLTAN = -L$(LIBRARY_PREFIX)/zoltan/lib
+
+INC_VECTORCLASS = -I$(LIBRARY_PREFIX)/vectorclass
