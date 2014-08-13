@@ -52,7 +52,7 @@ class GPU_velocity_grid {
         unsigned int *velocity_block_list; // Block indices from SpatialCell
         unsigned int *num_blocks, num_blocks_host; // Number of blocks on the SpatialCell
         Real *min_val; // From SpatialCell as well
-        grid_dims_t *grid_dims;
+        grid_dims_t *grid_dims, *grid_dims_host;
         vel_block *vel_grid; // Block structured full grid
 
         

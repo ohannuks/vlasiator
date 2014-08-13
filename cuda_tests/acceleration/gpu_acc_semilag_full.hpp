@@ -29,7 +29,6 @@
 
 #include "vlasovsolver/cpu_acc_transform.hpp"
 #include "vlasovsolver/cpu_acc_intersections.hpp"
-#include "vlasovsolver/cpu_acc_map.hpp"
 
 #include "map_3d.hpp"
 
@@ -136,87 +135,84 @@ __global__ void map_column(GPU_velocity_grid *ggrid, Real intersection, Real int
 
   Real *column_data = new Real[column_size + 2*WID]; // propagate needs the extra cells
   Real *target_column_data = new Real[column_size+2*WID];
-  for (int block_i = 0; block_i < block_di; block_i++) {
-    for (int block_j = 0; block_j < block_dj; block_j++) {
-      int blockid = block_i * block_indices_to_id[0] + block_j * block_indices_to_id[1]; // Here k = 0
-      for (int cell_i = 0; cell_i < WID; cell_i++) {
-        for (int cell_j = 0; cell_j < WID; cell_j++) {
-          int cellid = cell_i * cell_indices_to_id[0] + cell_j * cell_indices_to_id[1]; // Here k = 0
-          // Construct a temporary array with only data from one column of velocity CELLS
-          for (int block_k = 0; block_k < block_dk; block_k++) {
-            for (int cell_k = 0; cell_k < WID; ++cell_k) {
-              column_data[block_k*WID + cell_k + WID] = full_grid->grid[(blockid+block_k*block_indices_to_id[2])*WID3 + cellid + cell_k*cell_indices_to_id[2]]; // Cells in the same k column in a block are WID2 apart
-            }
-          }
-          if (dimension == 2 && full_grid->min_x + block_i == 15 && full_grid->min_y + block_j == 15 && cell_i == 1 && cell_j == 1) {
-            fprint_column("input_column.dat", column_data, column_size, full_grid->min_z);
-            printf("%e %e %e %e\n", intersection, intersection_di, intersection_dj, intersection_dk);
-          }
-          propagate(column_data, target_column_data, block_dk, v_min, cell_dv,
-             block_i, cell_i, block_j, cell_j,
-             intersection, intersection_di, intersection_dj, intersection_dk);
-          //propagate_old(column_data, block_dk, v_min, cell_dv,
-          //   block_i, cell_i,block_j, cell_j,
-          //   intersection, intersection_di, intersection_dj, intersection_dk);
-          if (dimension == 2 && full_grid->min_x + block_i == 15 && full_grid->min_y + block_j == 15 && cell_i == 1 && cell_j == 1)
-            //fprint_column("output_column.dat", column_data, column_size, full_grid->min_z);
-            fprint_column("output_column.dat", target_column_data, column_size+2*WID, full_grid->min_z);
-
-          // Copy back to full grid
-          for (int block_k = 0; block_k < block_dk; block_k++) {
-            for (int cell_k = 0; cell_k < WID; ++cell_k) {
-              full_grid->grid[(blockid+block_k*block_indices_to_id[2])*WID3 + cellid + cell_k*cell_indices_to_id[2]] = target_column_data[block_k*WID + cell_k + WID];
-              //full_grid->grid[(blockid+block_k*block_indices_to_id[2])*WID3 + cellid + cell_k*cell_indices_to_id[2]] = column_data[block_k*WID + cell_k + WID];
-            }
-          }
-        }
-      }
+  int blockid = block_i * block_indices_to_id[0] + block_j * block_indices_to_id[1]; // Here k = 0
+  int cellid = cell_i * cell_indices_to_id[0] + cell_j * cell_indices_to_id[1]; // Here k = 0
+  // Construct a temporary array with only data from one column of velocity CELLS
+  for (int block_k = 0; block_k < block_dk; block_k++) {
+    for (int cell_k = 0; cell_k < WID; ++cell_k) {
+      column_data[block_k*WID + cell_k + WID] = full_grid->grid[(blockid+block_k*block_indices_to_id[2])*WID3 + cellid + cell_k*cell_indices_to_id[2]]; // Cells in the same k column in a block are WID2 apart
     }
   }
+  if (dimension == 2 && full_grid->min_x + block_i == 15 && full_grid->min_y + block_j == 15 && cell_i == 1 && cell_j == 1) {
+    fprint_column("input_column.dat", column_data, column_size, full_grid->min_z);
+    printf("%e %e %e %e\n", intersection, intersection_di, intersection_dj, intersection_dk);
+  }
+  propagate(column_data, target_column_data, block_dk, v_min, cell_dv,
+     block_i, cell_i, block_j, cell_j,
+     intersection, intersection_di, intersection_dj, intersection_dk);
+  //propagate_old(column_data, block_dk, v_min, cell_dv,
+  //   block_i, cell_i,block_j, cell_j,
+  //   intersection, intersection_di, intersection_dj, intersection_dk);
+  if (dimension == 2 && full_grid->min_x + block_i == 15 && full_grid->min_y + block_j == 15 && cell_i == 1 && cell_j == 1) {
+
+  }
+
+  // Copy back to full grid
+  for (int block_k = 0; block_k < block_dk; block_k++) {
+    for (int cell_k = 0; cell_k < WID; ++cell_k) {
+      full_grid->grid[(blockid+block_k*block_indices_to_id[2])*WID3 + cellid + cell_k*cell_indices_to_id[2]] = target_column_data[block_k*WID + cell_k + WID];
+      //full_grid->grid[(blockid+block_k*block_indices_to_id[2])*WID3 + cellid + cell_k*cell_indices_to_id[2]] = column_data[block_k*WID + cell_k + WID];
+    }
+  }
+    
   delete[] column_data;
   delete[] target_column_data;
 }
 
-void gpu_accelerate_cell_(SpatialCell* spatial_cell,const Real dt) {
-   double t1=MPI_Wtime();
-   /*compute transform, forward in time and backward in time*/
-   phiprof::start("compute-transform");
-   //compute the transform performed in this acceleration
-   Transform<Real,3,Affine> fwd_transform= compute_acceleration_transformation(spatial_cell,dt);
-   Transform<Real,3,Affine> bwd_transform = fwd_transform.inverse();
-   phiprof::stop("compute-transform");
-   phiprof::start("compute-intersections");
-   Real intersection_z,intersection_z_di,intersection_z_dj,intersection_z_dk;
-   Real intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk;
-   Real intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk;
-   compute_intersections_z(spatial_cell, bwd_transform, fwd_transform,
-                           intersection_z,intersection_z_di,intersection_z_dj,intersection_z_dk);
-   compute_intersections_x(spatial_cell, bwd_transform, fwd_transform,
-                           intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk);
-   compute_intersections_y(spatial_cell, bwd_transform, fwd_transform,
-                           intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk);
-   phiprof::stop("compute-intersections");
-   phiprof::start("compute-mapping");
+void gpu_accelerate_cell(GPU_velocity_grid grid, const Real dt) {
+  double t1=MPI_Wtime();
+  // Use the connected spatial_cell for calculating intersections (on cpu) as usual.
+  SpatialCell *spatial_cell = grid.cpu_cell;
+  /*compute transform, forward in time and backward in time*/
+  phiprof::start("compute-transform");
+  //compute the transform performed in this acceleration
+  Transform<Real,3,Affine> fwd_transform= compute_acceleration_transformation(spatial_cell, dt);
+  Transform<Real,3,Affine> bwd_transform = fwd_transform.inverse();
+  phiprof::stop("compute-transform");
+  phiprof::start("compute-intersections");
+  Real intersection_z,intersection_z_di,intersection_z_dj,intersection_z_dk;
+  Real intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk;
+  Real intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk;
+  compute_intersections_z(spatial_cell, bwd_transform, fwd_transform,
+                          intersection_z,intersection_z_di,intersection_z_dj,intersection_z_dk);
+  compute_intersections_x(spatial_cell, bwd_transform, fwd_transform,
+                          intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk);
+  compute_intersections_y(spatial_cell, bwd_transform, fwd_transform,
+                          intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk);
+  phiprof::stop("compute-intersections");
+  phiprof::start("compute-mapping");
 
-   // Create a full grid from the sparse spatialCell
-   GPU_velocity_grid *ggrid = new GPU_velocity_grid(spatial_ cell);
+  // Create a full grid from the sparse spatialCell
+  GPU_velocity_grid *ggrid = new GPU_velocity_grid(spatial_ cell);
 
-   //Do the actual mapping
-   map_column_kernel(full_grid, intersection_z,intersection_z_di,intersection_z_dj,intersection_z_dk, 2);
-   map_column_kernel(full_grid, intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk, 0);
-   map_column_kernel(full_grid, intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk, 1);
+  uint num_cells_xy = grid.grid_dims->;
 
-   // Transfer data back to the SpatialCell
-   spatial_cell = ggrid->data_to_SpatialCell(spatial_cell, full_grid);
-   
-   // Remove unnecessary blocks
-   std::vector<SpatialCell*> neighbor_ptrs;
-   spatial_cell->update_velocity_block_content_lists();
-   spatial_cell->adjust_velocity_blocks(neighbor_ptrs,true);
-   
-   phiprof::stop("compute-mapping");
-   double t2=MPI_Wtime();
-   spatial_cell->parameters[CellParams::LBWEIGHTCOUNTER] += t2 - t1;
+  //Do the actual mapping
+  map_column_kernel<<<>>>(full_grid, intersection_z,intersection_z_di,intersection_z_dj,intersection_z_dk, 2);
+  map_column_kernel<<<>>>(full_grid, intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk, 0);
+  map_column_kernel<<<>>>(full_grid, intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk, 1);
+
+  // Transfer data back to the SpatialCell
+  spatial_cell = ggrid->data_to_SpatialCell(spatial_cell, full_grid);
+  
+  // Remove unnecessary blocks
+  std::vector<SpatialCell*> neighbor_ptrs;
+  spatial_cell->update_velocity_block_content_lists();
+  spatial_cell->adjust_velocity_blocks(neighbor_ptrs,true);
+  
+  phiprof::stop("compute-mapping");
+  double t2=MPI_Wtime();
+  spatial_cell->parameters[CellParams::LBWEIGHTCOUNTER] += t2 - t1;
 }
 
 

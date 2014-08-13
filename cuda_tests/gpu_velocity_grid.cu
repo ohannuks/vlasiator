@@ -5,20 +5,21 @@ using namespace spatial_cell;
 // Copies velocity_block_list and block_data as well as necessary constants from a SpatialCell to GPU for processing.
 GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
     cpu_cell = spacell;
-    // Allocate memory on the gpu
+    // Allocate memory
     unsigned int vel_block_list_size = spacell->number_of_blocks*sizeof(unsigned int);
     unsigned int block_data_size = spacell->block_data.size() * sizeof(Real);
 
+    // Note that vel_grid (aka. the actual velocity space) has to allocated separately in init_grid
     CUDACALL(cudaMalloc(&num_blocks, sizeof(unsigned int)));
     CUDACALL(cudaMalloc(&velocity_block_list, vel_block_list_size));
     CUDACALL(cudaMalloc(&block_data, block_data_size));
     CUDACALL(cudaMalloc(&min_val, sizeof(Real)));
     CUDACALL(cudaMalloc(&grid_dims, sizeof(grid_dims_t)));
+    grid_dims_host = new grid_dims_t;
 
     // Copy to gpu
     unsigned int *velocity_block_list_arr = &(spacell->velocity_block_list[0]);
     Real *block_data_arr = &(spacell->block_data[0]);
-
     num_blocks_host = spacell->number_of_blocks;
     CUDACALL(cudaMemcpy(min_val, &(SpatialCell::velocity_block_min_value), sizeof(Real), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(num_blocks, &(spacell->number_of_blocks), sizeof(unsigned int), cudaMemcpyHostToDevice));
@@ -32,10 +33,13 @@ GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
 // The proper destructor for GPU_velocity_grid that has to be called manually. See the destructor comments for details.
 __host__ void GPU_velocity_grid::del(void) {
 // Free memory
+    CUDACALL(cudaFree(vel_grid));
     CUDACALL(cudaFree(num_blocks));
     CUDACALL(cudaFree(velocity_block_list));
     CUDACALL(cudaFree(block_data));
-    CUDACALL(cudaFree(vel_grid));
+    CUDACALL(cudaFree(min_val));
+    CUDACALL(cudaFree(grid_dims));
+    delete grid_dims_host;
 }
 
 // Nothing in here because this is called whenever a copy-by-value goes out of scope. Call dell when you want to free memory related to the instance.
@@ -213,12 +217,13 @@ __host__ void GPU_velocity_grid::init_grid(void) {
     unsigned int vel_grid_len = dx*dy*dz;
     printf("GRID DIMS: %u %u %u: %u\n", dx, dy, dz, vel_grid_len);
     ind3d dims = {dx, dy, dz};
+
+    CUDACALL(cudaMalloc(&vel_grid, vel_grid_len * sizeof(vel_block)));
+
     // Copy constants to device
     CUDACALL(cudaMemcpy(&this->grid_dims->min, &min_i, sizeof(ind3d), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(&this->grid_dims->max, &max_i, sizeof(ind3d), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(&this->grid_dims->size, &dims, sizeof(ind3d), cudaMemcpyHostToDevice));
-
-    CUDACALL(cudaMalloc(&vel_grid, vel_grid_len * sizeof(vel_block)));
     
     // Calculate grid dimensions and start kernel
     unsigned int blockSize = 64;
@@ -258,7 +263,7 @@ __host__ SpatialCell* GPU_velocity_grid::toSpatialCell(void) {
     ind3d bounding_box_dims, bounding_box_mins;
     bool *relevant_blocks;
     CUDACALL(cudaMemcpy(&bounding_box_dims, &this->grid_dims->size, sizeof(ind3d), cudaMemcpyDeviceToHost));
-    CUDACALL(cudaMemcpy(&bounding_box_mins, &this->grid_dims->min, sizeof(ind3d), cudaMemcpyDeviceToHost));
+    CUDACALL(cudaMemcpy(&bounding_box_mins, &this->grid_dims->min,  sizeof(ind3d), cudaMemcpyDeviceToHost));
 
     int box_size = bounding_box_dims.x * bounding_box_dims.y * bounding_box_dims.z;
     CUDACALL(cudaMalloc(&relevant_blocks, box_size * sizeof(bool)));
