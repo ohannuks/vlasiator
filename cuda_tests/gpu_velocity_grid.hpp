@@ -68,11 +68,12 @@ class GPU_velocity_grid {
         // Accessor functions. The blockid here refers to the blockid in the sparse grid.
         __device__ vel_block* get_velocity_grid_block(unsigned int blockid);
         __device__ int full_to_sparse_ind(unsigned int blockid);
-        __host__   int full_to_sparse_ind_host(unsigned int blockid, ind3d dims, ind3d mins);
-        __host__   ind3d get_full_grid_block_indices_host(const unsigned int blockid, ind3d mins);
+        __host__   int full_to_sparse_ind_host(unsigned int blockid);
+        __host__   ind3d get_full_grid_block_indices_host(const unsigned int blockid);
         __device__ Real get_velocity_cell(unsigned int blockid, unsigned int cellid);
         __device__ Real set_velocity_cell(unsigned int blockid, unsigned int cellid, Real val);
         __device__ void set_velocity_block(unsigned int blockid, Real *vals);
+        
         // Printing and helper functions
         __device__ ind3d get_velocity_block_indices(const unsigned int blockid);
         __device__ ind3d get_full_grid_block_indices(const unsigned int blockid);

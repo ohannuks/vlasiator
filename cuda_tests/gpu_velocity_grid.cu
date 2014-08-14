@@ -15,7 +15,7 @@ GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
     CUDACALL(cudaMalloc(&block_data, block_data_size));
     CUDACALL(cudaMalloc(&min_val, sizeof(Real)));
     CUDACALL(cudaMalloc(&grid_dims, sizeof(grid_dims_t)));
-    grid_dims_host = new grid_dims_t;
+    grid_dims_host = new grid_dims_t();
 
     // Copy to gpu
     unsigned int *velocity_block_list_arr = &(spacell->velocity_block_list[0]);
@@ -75,8 +75,9 @@ __device__ ind3d GPU_velocity_grid::get_full_grid_block_indices(const unsigned i
     return indices;
 }
 
-__host__ ind3d GPU_velocity_grid::get_full_grid_block_indices_host(const unsigned int blockid, ind3d dims) {
+__host__ ind3d GPU_velocity_grid::get_full_grid_block_indices_host(const unsigned int blockid) {
     ind3d indices;
+    ind3d dims = this->grid_dims_host->size;
     indices.x = blockid % dims.x;
     indices.y = (blockid / dims.x) % dims.y;
     indices.z = blockid / (dims.x * dims.y);
@@ -138,8 +139,9 @@ __device__ int GPU_velocity_grid::full_to_sparse_ind(unsigned int blockid) {
 }
 
 // Same as above for host. Requires indices of the minimum point of the full grid.
-__host__ int GPU_velocity_grid::full_to_sparse_ind_host(unsigned int blockid, ind3d dims, ind3d mins) {
-        ind3d full_inds = get_full_grid_block_indices_host(blockid, dims);
+__host__ int GPU_velocity_grid::full_to_sparse_ind_host(unsigned int blockid) {
+        ind3d mins = this->grid_dims_host->min;
+        ind3d full_inds = this->get_full_grid_block_indices_host(blockid);
         ind3d sparse_inds = {mins.x + full_inds.x, mins.y + full_inds.y, mins.z + full_inds.z};
     return sparse_inds.x + sparse_inds.y * SpatialCell::vx_length + sparse_inds.z * SpatialCell::vx_length * SpatialCell::vy_length;
 }
@@ -225,6 +227,10 @@ __host__ void GPU_velocity_grid::init_grid(void) {
     CUDACALL(cudaMemcpy(&this->grid_dims->max, &max_i, sizeof(ind3d), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(&this->grid_dims->size, &dims, sizeof(ind3d), cudaMemcpyHostToDevice));
     
+    this->grid_dims_host->min = min_i;
+    this->grid_dims_host->max = max_i;
+    this->grid_dims_host->size = dims;
+
     // Calculate grid dimensions and start kernel
     unsigned int blockSize = 64;
     unsigned int gridSize = ceilDivide(vel_grid_len, blockSize);
@@ -283,7 +289,7 @@ __host__ SpatialCell* GPU_velocity_grid::toSpatialCell(void) {
     for (int i = 0; i < box_size; i++) {
         // See if the block should be copied.
         if (!rel_blocks[i]) continue;
-        ind = full_to_sparse_ind_host(i, bounding_box_dims, bounding_box_mins);
+        ind = this->full_to_sparse_ind_host(i);
         rel_block_inds.push_back(ind);
         // Create the block in SpatialCell
         spacell->add_velocity_block(ind);
