@@ -100,6 +100,7 @@ int main(void) {
     cudaEventSynchronize(stop);
     print_elapsed_time(start, stop);
     
+    /*
     putchar('\n');
     printf("CPU acceleration:\n");
     clock_t cstart = clock(), diff;
@@ -108,6 +109,7 @@ int main(void) {
     int msec = diff * 1000 / CLOCKS_PER_SEC;
     printf("Time taken %d seconds %d milliseconds", msec/1000, msec%1000);
     putchar('\n');
+    */
     
     // New blocks are likely created so first remove unnecessary and then make a new sorted index list
     std::vector<SpatialCell*> neighbor_ptrs;

@@ -7,7 +7,7 @@
 #include "../spatial_cell.hpp"
 
 // Sets the data on all existing cells to zero.
-inline void clear_data(spatial_cell::SpatialCell *spacell) {
+inline void clear_data(spatial_cell::SpatialCell *spacell) {    
     unsigned int ind;
     spatial_cell::Velocity_Block* block_ptr;
     for(int i = 0; i < spacell->number_of_blocks; i++) {

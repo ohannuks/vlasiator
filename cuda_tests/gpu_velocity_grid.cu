@@ -1,5 +1,4 @@
 #include "gpu_velocity_grid.hpp"
-
 using namespace spatial_cell;
 
 // Copies velocity_block_list and block_data as well as necessary constants from a SpatialCell to GPU for processing.
@@ -16,6 +15,10 @@ GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
     CUDACALL(cudaMalloc(&min_val, sizeof(Real)));
     CUDACALL(cudaMalloc(&grid_dims, sizeof(grid_dims_t)));
     grid_dims_host = new grid_dims_t();
+    grid_dims_host->sparse_size.x = SpatialCell::vx_length;
+    grid_dims_host->sparse_size.y = SpatialCell::vy_length;
+    grid_dims_host->sparse_size.z = SpatialCell::vz_length;
+    grid_dims_host->cell_dv = SpatialCell::cell_dvx; // NOTE: Only one cell_dv is used for now as they are always the same in all dimensions.
 
     // Copy to gpu
     unsigned int *velocity_block_list_arr = &(spacell->velocity_block_list[0]);
@@ -23,9 +26,7 @@ GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
     num_blocks_host = spacell->number_of_blocks;
     CUDACALL(cudaMemcpy(min_val, &(SpatialCell::velocity_block_min_value), sizeof(Real), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(num_blocks, &(spacell->number_of_blocks), sizeof(unsigned int), cudaMemcpyHostToDevice));
-    CUDACALL(cudaMemcpy(&grid_dims->sparse_size.x, &SpatialCell::vx_length, sizeof(unsigned int), cudaMemcpyHostToDevice));
-    CUDACALL(cudaMemcpy(&grid_dims->sparse_size.y, &SpatialCell::vy_length, sizeof(unsigned int), cudaMemcpyHostToDevice));
-    CUDACALL(cudaMemcpy(&grid_dims->sparse_size.z, &SpatialCell::vz_length, sizeof(unsigned int), cudaMemcpyHostToDevice));
+    CUDACALL(cudaMemcpy(&grid_dims, &grid_dims_host, sizeof(grid_dims_t), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(velocity_block_list, velocity_block_list_arr, vel_block_list_size, cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(block_data, block_data_arr, block_data_size, cudaMemcpyHostToDevice));
 }

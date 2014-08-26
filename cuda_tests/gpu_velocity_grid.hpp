@@ -3,11 +3,11 @@
 
 #include <stdlib.h>
 #include <iostream>
-#include "../spatial_cell.hpp"
-#include "spatial_cell_funcs.hpp"
-
 #include <cuda.h>
 #include <cuda_runtime.h>
+
+#include "../spatial_cell.hpp"
+#include "spatial_cell_funcs.hpp"
 
 #define ERROR_CELL -1.0f
 #define ERROR_BLOCK NULL
@@ -32,7 +32,6 @@ inline T ceilDivide(T dividend, T divisor) {
 
 // 3d indices
 struct ind3d{unsigned int x,y,z;};
-//typedef uint3 ind3d;
 // analogous to class VelocityBlock of SpatialCell
 typedef struct{Real data[WID3];} vel_block;
 
@@ -42,6 +41,8 @@ typedef struct{
     ind3d max;
     ind3d size;
     ind3d sparse_size; // vx_length etc. from SpatialCell
+    Real cell_dv;
+    Real vx_min, vy_min, vz_min;
     } grid_dims_t;
 
 class GPU_velocity_grid {
@@ -50,9 +51,9 @@ class GPU_velocity_grid {
         spatial_cell::SpatialCell *cpu_cell; // The SpatialCell on CPU used as input
         Real *block_data; // Blocks from SpatialCell
         unsigned int *velocity_block_list; // Block indices from SpatialCell
-        unsigned int *num_blocks, num_blocks_host; // Number of blocks on the SpatialCell
+        unsigned int *num_blocks, num_blocks_host; // Number of blocks on the SpatialCell. Needed for initializing the full grid on gpu.
         Real *min_val; // From SpatialCell as well
-        grid_dims_t *grid_dims, *grid_dims_host;
+        grid_dims_t *grid_dims, *grid_dims_host; // Contains the metadata of the full grid.
         vel_block *vel_grid; // Block structured full grid
 
         
@@ -61,6 +62,7 @@ class GPU_velocity_grid {
         __host__ void del(void); // The actual destructor used to free memory
 
         __host__ void init_grid(void);
+        __host__ void accelerate(void);
         __host__ spatial_cell::SpatialCell *toSpatialCell(void);
         __host__ unsigned int min_ind(void);
         __host__ unsigned int max_ind(void);

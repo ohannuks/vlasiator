@@ -10,7 +10,6 @@ Copyright 2013, 2014 Finnish Meteorological Institute
 #include "algorithm"
 #include "math.h"
 #include "cpu_slope_limiter.hpp"
-
 using namespace std;
 
 

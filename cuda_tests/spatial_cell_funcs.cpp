@@ -1,8 +1,6 @@
 #include "spatial_cell_funcs.hpp"
 #include <vector>
 #include <math.h>
-#include "../vlasovsolver/cpu_acc_semilag.hpp"
-#include "acceleration/cpu_acc_semilag_full.hpp"
 
 using namespace spatial_cell;
 
@@ -276,10 +274,13 @@ std::vector<int>* sorted_velocity_block_list(SpatialCell * spacell) {
     return indices;
 }
 
+// Removed for now as includes necessitate refactoring to remove multiple definitions errors in linking
+/*
 // Wrapper for the non-Vlasiator version of cpu_accelerate_cell
 void cpu_acc_cell(SpatialCell *spacell, const Real dt) {
     cpu_accelerate_cell_(spacell, dt);
 }
+*/
 
 // Prints the xy-column given as parameter to file
 void print_column_to_file(const char *filename, SpatialCell *spacell, const uint x, const uint y) {

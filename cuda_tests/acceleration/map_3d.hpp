@@ -1,3 +1,6 @@
+#ifndef MAP_3D_HPP
+#define MAP_3D_HPP
+
 #include <stdio.h>
 #include "cpu_1d_column_interpolation.hpp"
 #include "common.h"
@@ -108,3 +111,5 @@ void propagate(Real *values, Real *target, uint  blocks_per_dim, Real v_min, Rea
   }
   */
 }
+
+#endif
