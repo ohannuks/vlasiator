@@ -4,22 +4,25 @@ include Makefile.${VLASIATOR_ARCH}
 EXE_NAME = test.out
 
 DEBUG = -g
-CUDADEBUG = -G
+CUDADEBUG = -g
 OPTIMIZATION = -O0
 ACC_ORDER = -DACC_SEMILAG_PPM
 
-NVCC_FLAGS += -Xcompiler $(ACC_ORDER) -Xcompiler -march=native $(OPTIMIZATION) -lmpi $(CUDADEBUG) -Xcudafe "--diag_suppress=boolean_controlling_expr_is_constant"
-# Next line fixes a clash with nvcc parser and boost
-NVCC_FLAGS +=-DBOOST_NOINLINE='__attribute__ ((noinline))'
+NVCC_FLAGS += -Xcompiler $(ACC_ORDER) -Xcompiler -march=native $(OPTIMIZATION) -lmpi $(CUDADEBUG)
+# Next line includes some rather specific tricks to workaround a number of warnings or errors. First one fixes a clash with nvcc parser and boost. Second one suppresses warnings when using nvcc with some libraries for example Eigen.
+NVCC_FLAGS +=-DBOOST_NOINLINE='__attribute__ ((noinline))' -Xcudafe "--diag_suppress=boolean_controlling_expr_is_constant"
 # This enables linking across multiple cuda files. A separate nvcc linking is needed for this (gpu_link.o).
 NVCC_FLAGS +=--relocatable-device-code=true
+# Set host compiler to be the same as for pure C files
+NVCC_FLAGS += -ccbin $(CC)
+
 CCFLAGS += $(OPTIMIZATION) -std=c++11 -Wno-write-strings -fpermissive
 CCFLAGS += -DUSE_AGNER_VECTORCLASS $(ACC_ORDER) 
 
 LIBS += $(LIB_BOOST) $(LIB_PROFILE) $(LIB_MPI) $(LIB_ZOLTAN)
 INCS += $(INC_BOOST) $(INC_PROFILE) $(SOURCE_FOLDER) $(INC_MPI) $(INC_EIGEN) $(INC_DCCRG) $(INC_ZOLTAN) -I../vlasovsolver/ -I../ $(INC_VECTORCLASS)
 
-OBJS = spatial_cell.o gpu_velocity_grid.o gpu_test.o spatial_cell_funcs.o gpu_link.o bounding_box.o gpu_acc_semilag_full_cpu.o
+OBJS = spatial_cell.o gpu_velocity_grid.o gpu_test.o spatial_cell_funcs.o gpu_link.o bounding_box.o gpu_acc_semilag_full_cpu.o  gpu_acc_semilag_full.o
 CPU_OBJS = cpu_test.o spatial_cell.o spatial_cell_funcs.o
 GPU_OBJS = gpu_velocity_grid.o bounding_box.o gpu_acc_semilag_full.o
 
