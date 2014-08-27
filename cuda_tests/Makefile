@@ -22,12 +22,12 @@ CCFLAGS += -DUSE_AGNER_VECTORCLASS $(ACC_ORDER)
 LIBS += $(LIB_BOOST) $(LIB_PROFILE) $(LIB_MPI) $(LIB_ZOLTAN)
 INCS += $(INC_BOOST) $(INC_PROFILE) $(SOURCE_FOLDER) $(INC_MPI) $(INC_EIGEN) $(INC_DCCRG) $(INC_ZOLTAN) -I../vlasovsolver/ -I../ $(INC_VECTORCLASS)
 
-OBJS = spatial_cell.o gpu_velocity_grid.o gpu_test.o spatial_cell_funcs.o gpu_link.o bounding_box.o gpu_acc_semilag_full_cpu.o  gpu_acc_semilag_full.o
+OBJS = spatial_cell.o  gpu_test.o spatial_cell_funcs.o gpu_link.o  gpu_acc_semilag_full_cpu.o
 CPU_OBJS = cpu_test.o spatial_cell.o spatial_cell_funcs.o
 GPU_OBJS = gpu_velocity_grid.o bounding_box.o gpu_acc_semilag_full.o
 
 default: $(OBJS)
-	$(CC) $(DEBUG) $(OBJS) $(LIBS) $(CCFLAGS) $(CUDAFLAGS) -o $(EXE_NAME)
+	$(CC) $(DEBUG) $(OBJS) $(GPU_OBJS) $(LIBS) $(CCFLAGS) $(CUDAFLAGS) -o $(EXE_NAME)
 
 # CUDA agnostic CPU only version
 cpu: $(CPU_OBJS)

@@ -80,16 +80,13 @@ int main(void) {
     print_elapsed_time(start, stop);
 
     putchar('\n');
-    printf("spacell:\n");
-    printf("Number of relevant blocks: %4lu\n", spacell->velocity_block_list.size());
-    for (int i = 0; i < spacell->velocity_block_list.size(); i++) {
-        int ind = spacell->velocity_block_list[(*sorted_ind)[i]];
-        //int ind = spacell->velocity_block_list[i];
-        ind3d inds = GPU_velocity_grid::get_velocity_block_indices_host(ind);
-        Velocity_Block* block_ptr = spacell->at(ind);
-        printf(block_print_format, ind, inds.x, inds.y, inds.z, block_ptr->data[0]);
-    }
-    putchar('\n');
+    printf("GPU acceleration:\n");
+    cudaDeviceSynchronize();
+    cudaEventRecord(start);
+    ggrid->accelerate(1e-3);
+    CUDACALL(cudaEventRecord(stop));
+    cudaEventSynchronize(stop);
+    print_elapsed_time(start, stop);
 
     putchar('\n');
     printf("Back to CPU:\n");

@@ -62,7 +62,7 @@ class GPU_velocity_grid {
         __host__ void del(void); // The actual destructor used to free memory
 
         __host__ void init_grid(void);
-        __host__ void accelerate(void);
+        __host__ void accelerate(Real);
         __host__ spatial_cell::SpatialCell *toSpatialCell(void);
         __host__ unsigned int min_ind(void);
         __host__ unsigned int max_ind(void);

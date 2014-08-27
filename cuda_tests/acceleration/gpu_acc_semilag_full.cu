@@ -340,3 +340,8 @@ void map_column_kernel_wrapper(GPU_velocity_grid grid, Real intersection, Real i
   dim3 cells(WID, WID);
   map_column_kernel<dimension><<<blocks, cells>>>(grid, intersection, intersection_di, intersection_dj, intersection_dk);
 }
+
+template void map_column_kernel_wrapper<0>(GPU_velocity_grid grid, Real intersection, Real intersection_di, Real intersection_dj, Real intersection_dk);
+template void map_column_kernel_wrapper<1>(GPU_velocity_grid grid, Real intersection, Real intersection_di, Real intersection_dj, Real intersection_dk);
+template void map_column_kernel_wrapper<2>(GPU_velocity_grid grid, Real intersection, Real intersection_di, Real intersection_dj, Real intersection_dk);
+

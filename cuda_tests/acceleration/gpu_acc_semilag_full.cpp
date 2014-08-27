@@ -8,11 +8,13 @@
 #include "gpu_acc_semilag_full.hpp"
 #include "vlasovsolver/cpu_acc_intersections.hpp"
 #include "vlasovsolver/cpu_acc_transform.hpp"
+#include "../gpu_velocity_grid.hpp"
 
 using namespace Eigen;
 using namespace spatial_cell;
 
-void gpu_accelerate_cell(GPU_velocity_grid grid, const Real dt) {
+void GPU_velocity_grid::accelerate(const Real dt) {
+  GPU_velocity_grid grid = *this;
   double t1=MPI_Wtime();
   const uint block_size = 64u;
   // Use the connected spatial_cell for calculating intersections (on cpu) as usual.
