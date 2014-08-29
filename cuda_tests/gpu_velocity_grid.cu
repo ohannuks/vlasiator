@@ -26,7 +26,7 @@ GPU_velocity_grid::GPU_velocity_grid(SpatialCell *spacell) {
     num_blocks_host = spacell->number_of_blocks;
     CUDACALL(cudaMemcpy(min_val, &(SpatialCell::velocity_block_min_value), sizeof(Real), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(num_blocks, &(spacell->number_of_blocks), sizeof(unsigned int), cudaMemcpyHostToDevice));
-    CUDACALL(cudaMemcpy(&grid_dims, &grid_dims_host, sizeof(grid_dims_t), cudaMemcpyHostToDevice));
+    CUDACALL(cudaMemcpy(grid_dims, grid_dims_host, sizeof(grid_dims_t), cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(velocity_block_list, velocity_block_list_arr, vel_block_list_size, cudaMemcpyHostToDevice));
     CUDACALL(cudaMemcpy(block_data, block_data_arr, block_data_size, cudaMemcpyHostToDevice));
 }
@@ -43,7 +43,7 @@ __host__ void GPU_velocity_grid::del(void) {
     delete grid_dims_host;
 }
 
-// Nothing in here because this is called whenever a copy-by-value goes out of scope. Call dell when you want to free memory related to the instance.
+// Nothing in here because this is called whenever a copy-by-value goes out of scope. Call del when you want to free memory related to the instance.
 __host__ __device__ GPU_velocity_grid::~GPU_velocity_grid() {}
 
 __global__ void print_cells_k(GPU_velocity_grid ggrid) {

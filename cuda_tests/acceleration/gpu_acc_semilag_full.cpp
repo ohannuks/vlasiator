@@ -40,21 +40,13 @@ void GPU_velocity_grid::accelerate(const Real dt) {
 
   //Do the actual mapping
   // Calculate the number of cells in the "xy"-plane for whatever orientation the grid is assumed to be in the current mapping direction.
-  map_column_kernel_wrapper<2>(grid, intersection_x, intersection_x_di, intersection_x_dj, intersection_x_dk);
+  map_column_kernel_wrapper<2>(grid, intersection_z, intersection_z_di, intersection_z_dj, intersection_z_dk);
   CUDACALL(cudaDeviceSynchronize());
-  //map_column_kernel<0><<<>>>(full_grid, intersection_x,intersection_x_di,intersection_x_dj,intersection_x_dk, 0);
-  //CUDACALL(cudaDeviceSynchronize());
-  //map_column_kernel<1><<<>>>(full_grid, intersection_y,intersection_y_di,intersection_y_dj,intersection_y_dk, 1);
-  //CUDACALL(cudaDeviceSynchronize());
+  map_column_kernel_wrapper<0>(grid, intersection_x, intersection_x_di, intersection_x_dj, intersection_x_dk);
+  CUDACALL(cudaDeviceSynchronize());
+  map_column_kernel_wrapper<1>(grid, intersection_y, intersection_y_di, intersection_y_dj, intersection_y_dk);
+  CUDACALL(cudaDeviceSynchronize());
 
-  // Transfer data back to the SpatialCell
-  spatial_cell = grid.toSpatialCell();
-  CUDACALL(cudaDeviceSynchronize());
-  // Remove unnecessary blocks
-  std::vector<SpatialCell*> neighbor_ptrs;
-  spatial_cell->update_velocity_block_content_lists();
-  spatial_cell->adjust_velocity_blocks(neighbor_ptrs,true);
-  
   phiprof::stop("compute-mapping");
   double t2=MPI_Wtime();
   spatial_cell->parameters[CellParams::LBWEIGHTCOUNTER] += t2 - t1;

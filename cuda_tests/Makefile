@@ -3,9 +3,9 @@ include Makefile.${VLASIATOR_ARCH}
 
 EXE_NAME = test.out
 
-DEBUG = -g
-CUDADEBUG = -g
-OPTIMIZATION = -O0
+DEBUG = 
+CUDADEBUG = 
+OPTIMIZATION = -O3
 ACC_ORDER = -DACC_SEMILAG_PPM
 
 NVCC_FLAGS += -Xcompiler $(ACC_ORDER) -Xcompiler -march=native $(OPTIMIZATION) -lmpi $(CUDADEBUG)
